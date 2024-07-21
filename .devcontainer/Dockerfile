@@ -17,7 +17,7 @@ RUN apt-get update \
     #
     # Install packages for C++ development
     && apt-get -y install --no-install-recommends curl xz-utils x11-apps xauth git python3 \
-    cmake ninja-build openocd \
+    cmake ninja-build \
     #
     # [Optional] Update UID/GID if needed
 #     && if [ "$USER_GID" != "1000" ] || [ "$USER_UID" != "1000" ]; then \
@@ -55,8 +55,7 @@ WORKDIR /opt/
 RUN apt update && apt install -y gcc-arm-none-eabi \
         libnewlib-arm-none-eabi \
         build-essential \
-        libstdc++-arm-none-eabi-newlib \
-        gdb-multiarch
+        libstdc++-arm-none-eabi-newlib
 
 
 
@@ -71,15 +70,66 @@ RUN     apt install -y software-properties-common \
 # Tell gdb where to find the python scripts
 COPY gdbinit /home/$USERNAME/.gdbinit
 
-# Clone and setup the RP2040 SDK
-RUN git clone https://github.com/raspberrypi/pico-sdk /home/sdk/pico-sdk && \
-     cd /home/sdk/pico-sdk && \
+# Install dependencies for pico-sdk
+RUN apt-get install -y  git \
+                        cmake \
+                        gcc-arm-none-eabi \
+                        gcc \
+                        g++ \
+                        gdb-multiarch \
+                        automake \
+                        autoconf \
+                        build-essential \
+                        texinfo \
+                        libtool \
+                        libftdi-dev \
+                        libusb-1.0-0-dev \
+                        pkg-config
+
+WORKDIR /home/sdk/pico
+RUN git clone -b master https://github.com/raspberrypi/pico-sdk.git && \
+    cd pico-sdk && \
     git submodule update --init
 
-ENV PICO_SDK_PATH=/home/sdk/pico-sdk
+ENV PICO_SDK_PATH=/home/sdk/pico/pico-sdk
+
+# install picoprobe
+RUN git clone https://github.com/raspberrypi/picoprobe.git && \
+    cd picoprobe && \
+    git submodule update --init && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j4 
+
+# install picotool
+# RUN git clone https://github.com/raspberrypi/picotool.git && \
+#     cd picotool && \
+#     git submodule update --init && \
+#     mkdir build && \
+#     cd build && \
+#     cmake .. && \
+#     make -j4 && \
+#     # Install picotool
+#     cp picotool /usr/local/bin/
+
+# Install openocd
+Run git clone "https://github.com/raspberrypi/openocd.git" -b rp2040-v0.12.0 --depth=1 && \
+    cd openocd && \
+    ./bootstrap && \
+    ./configure --enable-picoprobe --enable-ftdi && \
+    make -j4 && \
+    make install
+
+# Clone and setup the RP2040 SDK
+# RUN git clone https://github.com/raspberrypi/pico-sdk /home/sdk/pico-sdk && \
+#      cd /home/sdk/pico-sdk && \
+#     git submodule update --init
+
+
 
 # Install pimoroni pico libraries
-RUN git clone https://github.com/pimoroni/pimoroni-pico.git /home/sdk/pimoroni-pico && \
-        cd /home/sdk/pimoroni-pico && \
+RUN git clone https://github.com/pimoroni/pimoroni-pico.git /home/sdk/pico/pimoroni-pico && \
+        cd /home/sdk/pico/pimoroni-pico && \
         git submodule update --init && \
         mkdir build
