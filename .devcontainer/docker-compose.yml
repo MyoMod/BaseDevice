@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  devcontainer:
+    
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    privileged: true                    # For USB devices
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix   # For displaying GUI applications
+      - ~/.Xauthority:/root/.Xauthority # ^^
+      - ..:/home/ubuntu/workspace:cached   
+      - /dev/bus/usb/:/dev/bus/usb      # For USB devices
+    network_mode: host
+    command: sleep infinity
