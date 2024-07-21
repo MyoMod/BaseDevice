@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug (RP2040)",
+            "name": "Cortex Debug OpenOCD",
             "cwd": "${workspaceRoot}",
             "executable": "${command:cmake.launchTargetPath}",
             "request": "launch",
@@ -30,43 +30,45 @@
             }
           },
           {
-            "name": "Cortex Debug RT1062",
+            "name": "Cortex Debug J-Link",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/debug/DPU_CMake.elf",
+            "executable": "${command:cmake.launchTargetPath}",
             "request": "launch",
             "type": "cortex-debug",
             "runToEntryPoint": "main",
             "servertype": "jlink",
             "serverpath": "/usr/bin/JLinkGDBServerCLExe",
             "serverArgs": [],
-            "device": "MIMXRT1062XXX6B",
-            "interface": "jtag",
+            "device": "RP2040_M0_0",
+            "numberOfProcessors": 2,
+            "interface": "swd",
             "serialNumber": "",
-            "svdPath": "${workspaceFolder}/.vscode/MIMXRT1062.svd",
-            "gdbPath": "arm-none-eabi-gdb-py",
+            "svdPath": "${env:PICO_SDK_PATH}/src/rp2040/hardware_regs/rp2040.svd",
+            "gdbPath": "gdb-multiarch",
+            "showDevDebugOutput": "raw",
             "objdumpPath": "arm-none-eabi-objdump",
-            "rttConfig": {
-                "enabled": true,
-                "address": "auto",
-                "decoders": [
-                    {
-                        "label": "RTT stream",
-                        "port": 0,
-                        "type": "console"
-                    }
-                ]
-            },
-            "preLaunchTask": {
-                "type": "cmake",
-                "label": "CMake: build",
-                "command": "build",
-                "targets": [
-                    "all"
-                ],
-                "group": "build",
-                "problemMatcher": [],
-                "detail": "CMake template build task"
-            }
+            // "rttConfig": {
+            //     "enabled": true,
+            //     "address": "auto",
+            //     "decoders": [
+            //         {
+            //             "label": "RTT stream",
+            //             "port": 0,
+            //             "type": "console"
+            //         }
+            //     ]
+            // },
+            // "preLaunchTask": {
+            //     "type": "cmake",
+            //     "label": "CMake: build",
+            //     "command": "build",
+            //     "targets": [
+            //         "all"
+            //     ],
+            //     "group": "build",
+            //     "problemMatcher": [],
+            //     "detail": "CMake template build task"
+            // }
         }
     ]
 }
