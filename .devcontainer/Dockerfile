@@ -6,7 +6,6 @@ ARG USER_GID=$USER_UID
 # Find new gcc versions here: 
 # https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
 ENV GCC_VERSION=13.3.rel1
-#ENV GCC_VERSION=12.3.rel1
 
 
 #COPY version_vcpkg.env install_vcpkg.sh /opt/
@@ -19,13 +18,6 @@ RUN apt-get update \
     && apt-get -y install --no-install-recommends curl xz-utils x11-apps xauth git python3 \
     cmake ninja-build \
     #
-    # [Optional] Update UID/GID if needed
-#     && if [ "$USER_GID" != "1000" ] || [ "$USER_UID" != "1000" ]; then \
-#     groupmod --gid $USER_GID $USERNAME \
-#     && usermod --uid $USER_UID --gid $USER_GID $USERNAME \
-#     && chown -R $USER_UID:$USER_GID /home/$USERNAME; \
-#     fi \
-    #
     # Install JLink
     && wget -q --post-data 'accept_license_agreement=accepted&non_emb_ctr=confirmed' https://www.segger.com/downloads/jlink/JLink_Linux_x86_64.deb -O /opt/JLink_Linux_x86_64.deb \
     && printf '#!/bin/bash \n echo not running udevadm "$@"' > /usr/bin/udevadm && chmod +x /usr/bin/udevadm \
@@ -36,27 +28,14 @@ RUN apt-get update \
     && wget -q https://www.segger.com/downloads/jlink/Ozone_Linux_V334_x86_64.deb \
     && apt install -y libxrandr-dev ./Ozone_Linux_V334_x86_64.deb \
     && rm -f Ozone_Linux_V334_x86_64.deb
-    #
-    # Clean up
-    #&& apt-get autoremove -y \
-    #&& apt-get clean -y \
-    #&& rm -rf /var/lib/apt/lists/*
+
 
 # Install GCC
 WORKDIR /opt/
-# RUN wget -qO- https://developer.arm.com/-/media/Files/downloads/gnu/${GCC_VERSION}/binrel/arm-gnu-toolchain-${GCC_VERSION}-x86_64-arm-none-eabi.tar.xz | tar -xJ
-# #rename the folder
-# RUN mv /opt/arm-gnu-toolchain-${GCC_VERSION}-x86_64-arm-none-eabi /opt/arm-none-eabi-gcc-${GCC_VERSION} && \
-#     ln -s /opt/arm-none-eabi-gcc-${GCC_VERSION} /opt/arm-none-eabi-gcc
-# ENV PATH "$PATH:/opt/arm-none-eabi-gcc/bin"
-# # install missing dependencies
-# RUN apt-get update && apt-get install -y libncurses5 libncurses5-dev libncursesw5 libncursesw5-dev
-# Try simpler approach
 RUN apt update && apt install -y gcc-arm-none-eabi \
         libnewlib-arm-none-eabi \
         build-essential \
         libstdc++-arm-none-eabi-newlib
-
 
 
 # Enable pretty printing for gdb
@@ -102,17 +81,6 @@ RUN git clone https://github.com/raspberrypi/picoprobe.git && \
     cmake .. && \
     make -j4 
 
-# install picotool
-# RUN git clone https://github.com/raspberrypi/picotool.git && \
-#     cd picotool && \
-#     git submodule update --init && \
-#     mkdir build && \
-#     cd build && \
-#     cmake .. && \
-#     make -j4 && \
-#     # Install picotool
-#     cp picotool /usr/local/bin/
-
 # Install openocd
 Run git clone "https://github.com/raspberrypi/openocd.git" -b rp2040-v0.12.0 --depth=1 && \
     cd openocd && \
@@ -121,15 +89,35 @@ Run git clone "https://github.com/raspberrypi/openocd.git" -b rp2040-v0.12.0 --d
     make -j4 && \
     make install
 
-# Clone and setup the RP2040 SDK
-# RUN git clone https://github.com/raspberrypi/pico-sdk /home/sdk/pico-sdk && \
-#      cd /home/sdk/pico-sdk && \
-#     git submodule update --init
-
-
 
 # Install pimoroni pico libraries
 RUN git clone https://github.com/pimoroni/pimoroni-pico.git /home/sdk/pico/pimoroni-pico && \
         cd /home/sdk/pico/pimoroni-pico && \
         git submodule update --init && \
         mkdir build
+
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> \
+        /etc/sudoers
+
+WORKDIR /opt/
+RUN wget -qO- https://developer.arm.com/-/media/Files/downloads/gnu/${GCC_VERSION}/binrel/arm-gnu-toolchain-${GCC_VERSION}-x86_64-arm-none-eabi.tar.xz | tar -xJ
+#rename the folder
+RUN mv /opt/arm-gnu-toolchain-${GCC_VERSION}-x86_64-arm-none-eabi /opt/arm-none-eabi-gcc-${GCC_VERSION} && \
+    ln -s /opt/arm-none-eabi-gcc-${GCC_VERSION} /opt/arm-none-eabi-gcc
+ENV PATH "$PATH:/opt/arm-none-eabi-gcc/bin"
+# install missing dependencies
+RUN apt-get update && apt-get install -y libncurses6 \
+        libncurses5-dev \
+        libncursesw6 \
+        libncursesw5-dev && \
+        #
+        # Clean up
+        apt-get autoremove -y && \
+        apt-get clean -y && \
+        rm -rf /var/lib/apt/lists/* && \
+        #
+        # symlink libncurses5 to libncurses6
+        #  see https://stackoverflow.com/questions/17005654/error-while-loading-shared-libraries-libncurses-so-5
+        ln -s /usr/lib/x86_64-linux-gnu/libncursesw.so.6.4 /usr/lib/libncurses.so.5 && \
+        ln -s /usr/lib/x86_64-linux-gnu/libncursesw.so.6.4 /usr/lib/libncursesw.so.5 && \
+        ln -s /usr/lib/x86_64-linux-gnu/libncursesw.so.6.4 /usr/lib/libtinfo.so.5
