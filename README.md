@@ -15,10 +15,10 @@ The MyoMod BaseDevice Template provides a standard framework for developing new 
 
 Before you begin, ensure you have the following prerequisites installed:
 
-* docker
+* docker (don't use the snap package, it's not supported by vscode!)
   - Please also follow the [Post-Install steps](https://docs.docker.com/engine/install/linux-postinstall/)
 * vscode
-  - Install the dev-container extension
+  - Install the [dev-container extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
 ### Installation
 
