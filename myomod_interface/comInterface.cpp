@@ -113,15 +113,15 @@ void (*Sync_Callback)(void);
 // Private function prototypes
 void core1_main(void);
 int core1_init(void);
-void comInterfaceRun(void);
+void core1_comInterfaceRun(void);
 int comInterfaceSendData(void *buffer, uint32_t length);
-bool WriteToRegister(void *buffer, uint32_t length, uint32_t registerName);
-void comInterfaceHandleHOutPDS(uint32_t bufferIndex);
-bool ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName);
-bool __always_inline ReadStatus(uint8_t *status);
+bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName);
+void core1_comInterfaceHandleHOutPDS(uint32_t bufferIndex);
+bool core1_ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName);
+bool __always_inline core1_ReadStatus(uint8_t *status);
 void __isr multicoreFiFoIRQHandler(void);
 void comInterfaceHandleConfigUpdate();
-void comInterfaceHandleSync();
+void core1_comInterfaceHandleSync();
 
 // Public functions
 
@@ -323,7 +323,7 @@ void core1_main(void)
 
     while (1)
     {
-        comInterfaceRun();
+        core1_comInterfaceRun();
     }
 }
 
@@ -352,18 +352,18 @@ int core1_init(void)
     i2cConfig.HOut_pdsBuffer = g_HOut_Buffer;
     i2cConfig.HOut_pdsLength = HOUT_BUFFER_SIZE;
 
-    i2cConfig.H_Out_NotifyPdsBufferFull = comInterfaceHandleHOutPDS;
-    i2cConfig.H_In_GetRegisterCallback = ReadFromRegister;
-    i2cConfig.H_In_GetStatusCallback = ReadStatus;
-    i2cConfig.H_Out_RegisterCallback = WriteToRegister;
+    i2cConfig.H_Out_NotifyPdsBufferFull = core1_comInterfaceHandleHOutPDS;
+    i2cConfig.H_In_GetRegisterCallback = core1_ReadFromRegister;
+    i2cConfig.H_In_GetStatusCallback = core1_ReadStatus;
+    i2cConfig.H_Out_RegisterCallback = core1_WriteToRegister;
 
-    i2cConfig.sync_callback = comInterfaceHandleSync;
+    i2cConfig.sync_callback = core1_comInterfaceHandleSync;
     I2C_Init(&i2cConfig);
 
     return 0;
 }
 
-void comInterfaceRun(void)
+void core1_comInterfaceRun(void)
 {
     // check if there is a HIn buffer to send
     if (multicore_fifo_rvalid())
@@ -389,7 +389,7 @@ void comInterfaceRun(void)
  * @param registerName The name/index of the register to write to.
  * @return void
  */
-bool WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
+bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
 {
     // check if the length is valid
     bool valid = true;
@@ -435,7 +435,7 @@ bool WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
  * @param data      pointer to the data buffer
  * @param length    length of the data buffer
  */
-void comInterfaceHandleHOutPDS(uint32_t bufferIndex)
+void core1_comInterfaceHandleHOutPDS(uint32_t bufferIndex)
 {
     // command core1 to send the buffer
     if (!multicore_fifo_wready())
@@ -449,7 +449,7 @@ void comInterfaceHandleHOutPDS(uint32_t bufferIndex)
  * @brief This function should be called from i2c when a sync is received.
  *
  */
-void comInterfaceHandleSync()
+void core1_comInterfaceHandleSync()
 {
     if (!multicore_fifo_wready())
     {
@@ -472,7 +472,7 @@ void comInterfaceHandleSync()
  * @param registerName The name of the register to read from.
  * @return true if the operation is successful, false otherwise.
  */
-bool ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName)
+bool core1_ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName)
 {
     // check if the length is valid
     bool valid = true;
@@ -514,7 +514,7 @@ bool ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName)
  * @return true if the access rights are valid and the status byte is successfully read,
  *         false otherwise.
  */
-bool __always_inline ReadStatus(uint8_t *status)
+bool __always_inline core1_ReadStatus(uint8_t *status)
 {
     // copy the data from the register
     *status = *(uint8_t *)g_regPointers[REG_StatusByte];
