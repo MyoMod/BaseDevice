@@ -90,12 +90,6 @@ Run git clone "https://github.com/raspberrypi/openocd.git" -b rp2040-v0.12.0 --d
     make install
 
 
-# Install pimoroni pico libraries
-RUN git clone https://github.com/pimoroni/pimoroni-pico.git /home/sdk/pico/pimoroni-pico && \
-        cd /home/sdk/pico/pimoroni-pico && \
-        git submodule update --init && \
-        mkdir build
-
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> \
         /etc/sudoers
 

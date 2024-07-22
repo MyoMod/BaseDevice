@@ -11,15 +11,10 @@ file(GLOB FILES
 # the second argument are the files that will be compiled to create your library.
 add_library(device_source ${FILES})
 
-include(libraries/pico_unicorn/pico_unicorn)
-
 # target_link_libraries: If you link with other libraries, list them here
 target_link_libraries(
   device_source 
   myomod_interface
-
-  pico_graphics 
-  pico_unicorn
 )
 
 # target_include_directories: Libraries need to publish their header files 

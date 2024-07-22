@@ -2,10 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 
 include(pico_sdk_import.cmake)
 
-include(pimoroni_pico_import.cmake)
-
-project(SampleSink C CXX ASM)
-set(EXECUTABLE SampleSink)
+project(BaseDevice C CXX ASM)
+set(EXECUTABLE BaseDevice)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
@@ -30,8 +28,8 @@ add_executable(${EXECUTABLE})
 pico_set_program_name(${EXECUTABLE} "${EXECUTABLE}")
 pico_set_program_version(${EXECUTABLE} "0.2")
 
-pico_enable_stdio_uart(${EXECUTABLE} 1)
-pico_enable_stdio_usb(${EXECUTABLE} 0)
+pico_enable_stdio_uart(${EXECUTABLE} 0)
+pico_enable_stdio_usb(${EXECUTABLE} 1)
 
 # Add the standard include files to the build
 target_include_directories(${EXECUTABLE} PRIVATE
