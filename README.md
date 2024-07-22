@@ -22,7 +22,7 @@ Before you begin, ensure you have the following prerequisites installed:
 
 ### Installation
 
-Clone this repository and open it in vscode. You should be prompted to open it in a dev-container - do so and you are good to go!
+Clone this repository and open it in vscode. You should be prompted to `Reopen in Container` - do so and you are good to go(it may take quite a while though)!
 
 ### Folder Structure
 The template follows a structured format to organize your device module efficiently:
