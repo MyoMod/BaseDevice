@@ -79,8 +79,6 @@ int main()
         asyncLoop();
     }
 
-    printf("done\n");
-
     return 0;
 }
 

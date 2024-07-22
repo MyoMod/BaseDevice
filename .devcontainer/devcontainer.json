@@ -16,7 +16,7 @@
 				"ms-vscode.cpptools",
 				"ms-vscode.cpptools-extension-pack",
 				"cschlosser.doxdocgen",
-				"spencerwmiles.vscode-task-buttons"
+				"spencerwmiles.vscode-task-buttons",
 			]
 		}
 	},
