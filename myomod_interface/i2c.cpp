@@ -192,7 +192,7 @@ void I2C_Init(i2cInitConfiguration_t *initConfiguration)
  * @param data  The data to send.
  * @param len   The length of the data in bytes.
  */
-void I2C_send_H_In_PDSData(uint8_t *data, uint32_t len)
+void I2C_send_H_In_PDSData(const uint8_t *data, uint32_t len)
 {
     // Check if the data fits into the buffer.
     assert(len == g_pdsDataLen);

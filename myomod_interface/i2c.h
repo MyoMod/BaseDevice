@@ -36,4 +36,4 @@ struct i2cInitConfiguration_t {
 
 // Functions
 void I2C_Init(i2cInitConfiguration_t *nitConfiguration);
-void I2C_send_H_In_PDSData(uint8_t *data, uint32_t len);
+void I2C_send_H_In_PDSData(const uint8_t *data, uint32_t len);

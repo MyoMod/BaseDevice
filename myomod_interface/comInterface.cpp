@@ -25,6 +25,18 @@
 #define CMD_NEW_DATA 0x02      // command to process new HOut data
 #define CMD_SYNC 0x03          // command that indicates a sync from host
 
+#define CORE0_TO_1_ALARM 0
+#define CORE1_TO_0_ALARM 1
+
+enum class Core1To0Commands
+{
+    None,
+    UpdateConfig,
+    NewData,
+    Sync
+};
+
+
 // Variables
 /**** Register interface ****/
 StatusByte_t g_statusByte =
@@ -86,9 +98,13 @@ mutex_t g_regMutexes[NUM_REGISTERS];
 
 static uint8_t g_HIn_Buffer[2][HIN_BUFFER_SIZE]; // Ping-Pong Buffer for the HIn data
 static uint32_t g_HInBufferIndex = 0;             // index of the current HIn buffer being filled
-static uint32_t g_HInBufferOffset = 0;            // offset in the current HIn buffer being filled
 
 static uint8_t g_HOut_Buffer[2][HOUT_BUFFER_SIZE]; // Ping-Pong Buffer for the HOut data
+
+volatile static bool g_core0To1Index = false; // index of the current HIn buffer being transmitted from core0 to core1
+volatile static bool g_core1To0Index = false; // index of the current HOut buffer being transmitted from core1 to core0
+
+volatile static Core1To0Commands g_core1To0Command = Core1To0Commands::None; // command from core1 to core0
 
 // true if the configuration register has been updated and the configuration needs to be updated
 volatile static bool g_updateConfig = false;
@@ -105,17 +121,23 @@ void (*UpdateConfig_Callback)(DeviceSpecificConfiguration_t *config, DeviceSpeci
 void (*Sync_Callback)(void);
 
 // Private function prototypes
+
+void __isr multicoreFiFoIRQHandler(void);
+void comInterfaceHandleConfigUpdate();
+
 void core1_main(void);
 int core1_init(void);
 void core1_comInterfaceRun(void);
-int comInterfaceSendData(void *buffer, uint32_t length);
 bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName);
 void core1_comInterfaceHandleHOutPDS(uint32_t bufferIndex);
 bool core1_ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName);
 bool __always_inline core1_ReadStatus(uint8_t *status);
-void __isr multicoreFiFoIRQHandler(void);
-void comInterfaceHandleConfigUpdate();
 void core1_comInterfaceHandleSync();
+
+static void __isr core0_alarm_irq_callback();
+static void __isr core1_alarm_irq_callback();
+static inline void core1_force_alarmInterrupt();
+static inline void core0_force_alarmInterrupt();
 
 // Public functions
 
@@ -153,11 +175,21 @@ int32_t comInterfaceInit(cominterfaceConfiguration *config)
         memset(g_HIn_Buffer, 0, HIN_BUFFER_SIZE * 2);
     }
 
+    // setup timers/alarms for cross core interrupt
+    hardware_alarm_claim(CORE0_TO_1_ALARM);
+    hardware_alarm_claim(CORE1_TO_0_ALARM);
+
+    // register the alarm interrupt handler
+    const uint irq_num = TIMER_IRQ_0 + CORE1_TO_0_ALARM;
+    irq_set_exclusive_handler(irq_num, core0_alarm_irq_callback);
+    irq_set_enabled(irq_num, true);
+    // Enable interrupt in block and at processor
+    hw_set_bits(&timer_hw->inte, 1u << CORE1_TO_0_ALARM);
+
+
     multicore_launch_core1(core1_main);
 
-    // activate interrupt for incomming multi-core fifo
-    irq_set_exclusive_handler(SIO_IRQ_PROC0, multicoreFiFoIRQHandler);
-    irq_set_enabled(SIO_IRQ_PROC0, true);
+
     return 0;
 }
 
@@ -172,27 +204,17 @@ void comInterfaceSetHIn(DeviceToHost_t *buffer)
     memcpy(&g_HIn_Buffer[g_HInBufferIndex], buffer, HIN_BUFFER_SIZE);
     g_core0To1Index = g_HInBufferIndex; 
     
+    core0_force_alarmInterrupt();
 
-    if (g_HInBufferOffset >= HIN_BUFFER_SIZE)
+    // check if there are new commands and issue them
+    // now, so that there is no newstart of the buffers
+    if (g_updateConfig)
     {
-        // command core1 to send the buffer
-        if (!multicore_fifo_wready())
-        {
-            //__breakpoint();
-        }
-        multicore_fifo_push_blocking(g_HInBufferIndex);
-
-        // check if there are new commands and issue them
-        // now, so that there is no newstart of the buffers
-        if (g_updateConfig)
-        {
-            comInterfaceHandleConfigUpdate();
-            g_updateConfig = false;
-        }
-
-        g_HInBufferOffset = 0;
-        g_HInBufferIndex = (g_HInBufferIndex + 1) % 2;
+        comInterfaceHandleConfigUpdate();
+        g_updateConfig = false;
     }
+
+    g_HInBufferIndex = !g_HInBufferIndex; // switch ping-pong buffer
 }
 
 /**
@@ -232,52 +254,35 @@ void comInterfaceSetStatus(DeviceSpecificStatus_t *status, bool generateWarning,
     }
 }
 
-/**
- * @brief Handles the interrupt that is fired when core1 writes a command to the multi-core fifo
- *
- */
-void __isr multicoreFiFoIRQHandler(void)
+void __isr core0_alarm_irq_callback()
 {
-    volatile uint32_t status = multicore_fifo_get_status();
+    // Clear the timer IRQ
+    timer_hw->intr = 1u << CORE1_TO_0_ALARM;
+    // Clear any forced IRQ
+    hw_clear_bits(&timer_hw->intf, 1u << CORE1_TO_0_ALARM);
 
-    if (status & SIO_FIFO_ST_ROE_BITS)
+    
+    // Handle the HOut buffer
+    switch (g_core1To0Command)
     {
-        __breakpoint();
-    }
-    if (status & SIO_FIFO_ST_WOF_BITS)
-    {
-        __breakpoint();
-    }
-
-    if (status & SIO_FIFO_ST_VLD_BITS)
-    {
-        volatile uint32_t fifoData = multicore_fifo_pop_blocking();
-        uint32_t command = fifoData & 0x0000FFFF;
-            HOut_Callback(reinterpret_cast<HostToDevice_t *>(&g_HOut_Buffer[g_core1To0Index]));
-
-        assert(bufferIndex < 2);
-
-        switch (command)
+    case Core1To0Commands::UpdateConfig:
+        g_updateConfig = true;
+        break;
+    case Core1To0Commands::NewData:
+        if (HOut_Callback != NULL)
         {
-        case CMD_UPDATE_CONFIG:
-            g_updateConfig = true;
-            break;
-        case CMD_NEW_DATA:
-            if (HOut_Callback != NULL)
-            {
-                HOut_Callback(g_HOut_Buffer[bufferIndex], HOUT_BUFFER_SIZE);
-            }
-            break;
-        case CMD_SYNC:
-            if (Sync_Callback != NULL)
-            {
-                Sync_Callback();
-            }
-            break;
-        default:
-            //__breakpoint();
-            break;
+            HOut_Callback(reinterpret_cast<HostToDevice_t *>(&g_HOut_Buffer[g_core1To0Index]));
         }
+        break;
+    case Core1To0Commands::Sync:
+        if (Sync_Callback != NULL)
+        {
+            Sync_Callback();
+        }
+        break;
+    default:
+        __breakpoint();
+        break;
     }
 }
 
@@ -306,6 +311,15 @@ void comInterfaceHandleConfigUpdate()
     memcpy(&oldConfig, &currentConfig, sizeof(DeviceSpecificConfiguration_t));
 }
 
+/**
+ * @brief Forces an interrupt on core1
+ * 
+ */
+static inline void core0_force_alarmInterrupt()
+{
+    hw_set_bits(&timer_hw->intf, 1u << CORE0_TO_1_ALARM);
+}
+
 /******** CORE 1 ********************************/
 void core1_main(void)
 {
@@ -319,8 +333,6 @@ void core1_main(void)
 
 int core1_init(void)
 {
-    uart_init(uart0, 921600);
-
     // init i2c
     uint32_t longestRegisterLength = 0;
     for (uint32_t i = 0; i < NUM_REGISTERS; i++)
@@ -350,6 +362,13 @@ int core1_init(void)
     i2cConfig.sync_callback = core1_comInterfaceHandleSync;
     I2C_Init(&i2cConfig);
 
+    // setup timers/alarms for cross core interrupt    
+    const uint irq_num = TIMER_IRQ_0 + CORE0_TO_1_ALARM;
+    irq_set_exclusive_handler(irq_num, core1_alarm_irq_callback);
+    irq_set_enabled(irq_num, true);
+    // Enable interrupt in block and at processor
+    hw_set_bits(&timer_hw->inte, 1u << CORE0_TO_1_ALARM);
+
     return 0;
 }
 
@@ -358,13 +377,20 @@ void core1_comInterfaceRun(void)
     // check if there is a HIn buffer to send
     if (multicore_fifo_rvalid())
     {
-        gpio_put(DEBUG_PIN2, 1);
-        uint32_t bufferIndex = multicore_fifo_pop_blocking();
-        uint8_t *buffer = g_HIn_Buffer[bufferIndex];
-        uint32_t length = HIN_BUFFER_SIZE; // length in bytes
-static void __isr core1_alarm_irq_callback()
-        gpio_put(DEBUG_PIN2, 0);
+        tight_loop_contents();
     }
+}
+
+static void __isr core1_alarm_irq_callback()
+{
+    // Clear the timer IRQ
+    timer_hw->intr = 1u << CORE0_TO_1_ALARM;
+    // Clear any forced IRQ
+    hw_clear_bits(&timer_hw->intf, 1u << CORE0_TO_1_ALARM);
+
+    
+    // Handle the HOut buffer
+    uint32_t length = HIN_BUFFER_SIZE; // length in bytes
     I2C_send_H_In_PDSData(reinterpret_cast<const uint8_t*> (g_HIn_Buffer[g_core0To1Index]), length);
 }
 
@@ -399,11 +425,8 @@ bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
         // inform core0 that the configuration has changed
         if (registerName = REG_DeviceSpecificConfiguration)
         {
-            if (!multicore_fifo_wready())
-            {
-                __breakpoint();
-            }
-            multicore_fifo_push_blocking(CMD_UPDATE_CONFIG);
+            g_core1To0Command = Core1To0Commands::UpdateConfig;
+            core1_force_alarmInterrupt();
         }
     }
     else
@@ -429,11 +452,9 @@ bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
 void core1_comInterfaceHandleHOutPDS(uint32_t bufferIndex)
 {
     // command core1 to send the buffer
-    if (!multicore_fifo_wready())
-    {
-        __breakpoint();
-    }
-    multicore_fifo_push_blocking(CMD_NEW_DATA | bufferIndex << 16);
+    g_core1To0Index = bufferIndex;
+    g_core1To0Command = Core1To0Commands::NewData;
+    core1_force_alarmInterrupt();
 }
 
 /**
@@ -442,11 +463,8 @@ void core1_comInterfaceHandleHOutPDS(uint32_t bufferIndex)
  */
 void core1_comInterfaceHandleSync()
 {
-    if (!multicore_fifo_wready())
-    {
-        __breakpoint();
-    }
-    multicore_fifo_push_blocking(CMD_SYNC);
+    g_core1To0Command = Core1To0Commands::Sync;
+    core1_force_alarmInterrupt();
 }
 
 /**
@@ -511,4 +529,13 @@ bool __always_inline core1_ReadStatus(uint8_t *status)
     *status = *(uint8_t *)g_regPointers[REG_StatusByte];
 
     return true;
+}
+
+/**
+ * @brief Forces an interrupt on core0
+ *
+ */
+static inline void core1_force_alarmInterrupt()
+{
+    hw_set_bits(&timer_hw->intf, 1u << CORE1_TO_0_ALARM);
 }
