@@ -17,15 +17,9 @@
 #include "specificRegisters.h"
 
 // Defines
-#define HOUT_NUMBER_OF_CHANNELS 7                                                                 // number of channels for the H_OUT stream
-#define HOUT_ELEMENT_SIZE 1                                                                       // size in bytes of one element for the H_OUT stream
-#define HOUT_BUFFER_ELEMENTS_MAX 1                                                                // max number of elements in the buffer for the H_OUT stream
-#define HOUT_BUFFER_SIZE (HOUT_BUFFER_ELEMENTS_MAX * HOUT_ELEMENT_SIZE * HOUT_NUMBER_OF_CHANNELS) // size of the buffer in bytes for the H_OUT stream
+#define HOUT_BUFFER_SIZE (sizeof(HostToDevice_t)) // size of the buffer in bytes for the H_OUT stream
 
-#define HIN_NUMBER_OF_CHANNELS 4                                                              // number of channels for the H_IN stream
-#define HIN_ELEMENT_SIZE 1                                                                    // size in bytes of one element for the H_IN stream
-#define HIN_BUFFER_ELEMENTS_MAX 1                                                             // max number of elements in the buffer for the H_IN stream
-#define HIN_BUFFER_SIZE (HIN_BUFFER_ELEMENTS_MAX * HIN_ELEMENT_SIZE * HIN_NUMBER_OF_CHANNELS) // size of the buffer in bytes for the H_IN stream
+#define HIN_BUFFER_SIZE (sizeof(DeviceToHost_t)) // size of the buffer in bytes for the H_IN stream
 
 #define CMD_UPDATE_CONFIG 0x01 // command to update the configuration
 #define CMD_NEW_DATA 0x02      // command to process new HOut data
@@ -106,7 +100,7 @@ uint32_t g_sdaPin;
 uint32_t g_sclPin;
 
 // Callbacks
-void (*HOut_Callback)(void *data, uint32_t length);
+void (*HOut_Callback)(const HostToDevice_t * const data);
 void (*UpdateConfig_Callback)(DeviceSpecificConfiguration_t *config, DeviceSpecificConfiguration_t *oldConfig);
 void (*Sync_Callback)(void);
 
@@ -168,20 +162,16 @@ int32_t comInterfaceInit(cominterfaceConfiguration *config)
 }
 
 /**
- * @brief Adds a sample to the buffer and handles the buffer management
+ * @brief Sets the HIn buffer and handles the buffer management
  * 
- * @note This function assumes that the samples are added in chronological order
- *       (that means e.g. that all sammples of t0 are added before the first samples of t1).
- *       The order of the channels does not matter.
  *
- * @param sample        pointer to the sample
- * @param channel       channel number
+ * @param buffer        pointer to the buffer containing the data
  */
-void comInterfaceAddSample(void *sample, uint32_t channel)
-{
-    uint32_t bufferIndex = (g_HInBufferOffset / (HIN_NUMBER_OF_CHANNELS * HIN_ELEMENT_SIZE)) * HIN_ELEMENT_SIZE + channel * (HIN_ELEMENT_SIZE * HIN_BUFFER_ELEMENTS_MAX);
-    memcpy(&g_HIn_Buffer[g_HInBufferIndex][bufferIndex], sample, HIN_ELEMENT_SIZE);
-    g_HInBufferOffset += HIN_ELEMENT_SIZE;
+void comInterfaceSetHIn(DeviceToHost_t *buffer)
+{  
+    memcpy(&g_HIn_Buffer[g_HInBufferIndex], buffer, HIN_BUFFER_SIZE);
+    g_core0To1Index = g_HInBufferIndex; 
+    
 
     if (g_HInBufferOffset >= HIN_BUFFER_SIZE)
     {
@@ -263,7 +253,7 @@ void __isr multicoreFiFoIRQHandler(void)
     {
         volatile uint32_t fifoData = multicore_fifo_pop_blocking();
         uint32_t command = fifoData & 0x0000FFFF;
-        uint32_t bufferIndex = (fifoData & 0xFFFF0000) >> 16;
+            HOut_Callback(reinterpret_cast<HostToDevice_t *>(&g_HOut_Buffer[g_core1To0Index]));
 
         assert(bufferIndex < 2);
 
@@ -372,9 +362,10 @@ void core1_comInterfaceRun(void)
         uint32_t bufferIndex = multicore_fifo_pop_blocking();
         uint8_t *buffer = g_HIn_Buffer[bufferIndex];
         uint32_t length = HIN_BUFFER_SIZE; // length in bytes
-        I2C_send_H_In_PDSData((uint8_t *)g_HIn_Buffer[bufferIndex], length);
+static void __isr core1_alarm_irq_callback()
         gpio_put(DEBUG_PIN2, 0);
     }
+    I2C_send_H_In_PDSData(reinterpret_cast<const uint8_t*> (g_HIn_Buffer[g_core0To1Index]), length);
 }
 
 /**

@@ -34,7 +34,7 @@ struct cominterfaceConfiguration
     uint32_t g_sclPin;
 
     // Callbacks
-    void (*HOut_Callback)(void* data, uint32_t length);
+    void (*HOut_Callback)(const HostToDevice_t* const data);
     void (*UpdateConfig_Callback)(DeviceSpecificConfiguration_t* config, DeviceSpecificConfiguration_t* oldConfig);
     void (*sync_callback)(void);
 };
@@ -45,6 +45,6 @@ struct cominterfaceConfiguration
  * *********************************************************************************/
 
 int32_t comInterfaceInit(cominterfaceConfiguration* config);
-void comInterfaceAddSample(void *sample, uint32_t channel);
+void comInterfaceSetHIn(DeviceToHost_t *data);
 void comInterfaceGetStatus(DeviceSpecificStatus_t *status);
 void comInterfaceSetStatus(DeviceSpecificStatus_t *status, bool generateWarning, bool generateError);

@@ -22,6 +22,12 @@
  * DATA TYPES
  * *********************************************************************************/
 
+#include <array>
+// Define types for Host -> Device (HOut)
+typedef std::array<uint8_t, 7> HostToDevice_t;
+// Define types for Device -> Host (HIn)
+typedef std::array<uint8_t, 4> DeviceToHost_t;
+
 /**
  * @brief Device specific status
  * 

@@ -62,7 +62,7 @@ volatile bool g_sync = false;
  * **********************************************************/
 void setup();
 void asyncLoop();
-void dataCallback(void* data, uint32_t length);
+void dataCallback(const HostToDevice_t * const data);
 void syncCallback();
 void configCallback(DeviceSpecificConfiguration_t* config, DeviceSpecificConfiguration_t* oldConfig);
 
@@ -126,26 +126,20 @@ void asyncLoop()
     if (g_sync)
     {
         g_sync = false;
-        gpio_put(DEBUG_PIN1, 1);
-        uint8_t data;
+        static DeviceToHost_t data;
         for (size_t i = 0; i < 4; i++)
         {
-            data= !gpio_get(BUTTON_PINS[i]);
-            comInterfaceAddSample(&data, i);
+            data[i] = !gpio_get(BUTTON_PINS[i]);
         }
-        
-        gpio_put(DEBUG_PIN1, 0);
+        comInterfaceSetHIn(&data);
     }
 }
 
-void dataCallback(void* data, uint32_t length)
+void dataCallback(const HostToDevice_t * const data)
 {
-    uint8_t *values = (uint8_t*) data;
-    uint32_t barNum = MIN(length, 7);
-
-    for (size_t bar = 0; bar < barNum; bar++)
+    for (size_t bar = 0; bar < data->size(); bar++)
     {
-        display_drawBar(bar, values[bar]);
+        display_drawBar(bar, (*data)[bar]);
     }
 }
 
