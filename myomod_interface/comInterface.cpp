@@ -56,12 +56,12 @@ CommonDeviceStatus_t g_commonDeviceStatus =
 };
 CommonDeviceInfo_t g_commonDeviceInfo =
     {
-        0,                         // H_In_PacketSize
-        6,                         // H_Out_PacketSize
-        "SDSource",               // Identifier
-        {0, 1, 0},                 // DeviceVersion
-        {0, 1, 0},                 // ProtocolVersion
-        StreamDir_t::HostInHostOut // SupportedStreamDirections
+        0,                          // H_In_PacketSize
+        6,                          // H_Out_PacketSize
+        MM_DEVICE_IDENTIFIER,       // Identifier
+        MM_DEVICE_VERSION,          // DeviceVersion
+        {0, 1, 0},                  // ProtocolVersion
+        StreamDir_t::HostInHostOut  // SupportedStreamDirections
 };
 CommonDeviceConfiguration_t g_commonDeviceConfiguration =
     {
@@ -70,16 +70,9 @@ CommonDeviceConfiguration_t g_commonDeviceConfiguration =
         0, // DeviceIntialized
         0, // reserved
 };
-DeviceSpecificStatus_t g_deviceSpecificStatus =
-    {
-        0 // plays
-};
+DeviceSpecificStatus_t g_deviceSpecificStatus;
 DeviceSpecificInfo_t g_deviceSpecificInfo;
-
-DeviceSpecificConfiguration_t g_deviceSpecificConfiguration =
-    {
-        1 // ActiveFile
-};
+DeviceSpecificConfiguration_t g_deviceSpecificConfiguration;
 
 uint32_t g_regLength[] = {sizeof(g_statusByte), sizeof(g_commonDeviceStatus),
                           sizeof(g_commonDeviceInfo), sizeof(g_commonDeviceConfiguration),

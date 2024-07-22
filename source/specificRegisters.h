@@ -13,6 +13,9 @@
 /************************************************************************************
  * DEFINES
  ************************************************************************************/
+#define MM_DEVICE_VERSION {0, 1, 0}
+#define MM_DEVICE_IDENTIFIER {'B', 'a', 's', 'e', 'D', 'e', 'v', 'i', 'c', 'e'}
+
 
 /************************************************************************************
  * PROTOTYPES
@@ -34,6 +37,7 @@ typedef std::array<uint8_t, 4> DeviceToHost_t;
  */
 struct __attribute__((packed)) DeviceSpecificStatus_t
 {
+    // Example:
     uint8_t DisplayDetected : 8 = 1;
 };
 
@@ -43,6 +47,7 @@ struct __attribute__((packed)) DeviceSpecificStatus_t
  */
 struct __attribute__((packed)) DeviceSpecificInfo_t
 {
+    // Example:
     uint8_t DeviceSpecificInfo[10] = "BarDispl";
 };
 
@@ -52,6 +57,7 @@ struct __attribute__((packed)) DeviceSpecificInfo_t
  */
 struct DeviceSpecificConfiguration_t
 {
+    // Example:
     uint32_t BarColors[7] =
     {
         0x00ff00,
