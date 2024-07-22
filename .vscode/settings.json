@@ -18,6 +18,18 @@
         "buildTarget": {
             "statusBarVisibility": "hidden"
         },
+        "testPreset": {
+            "statusBarVisibility": "hidden"
+        },
+        "launchTarget": {
+            "statusBarVisibility": "hidden"
+        },
+        "configurePreset": {
+            "statusBarVisibility": "hidden"
+        },
+        "ctest": {
+            "statusBarVisibility": "hidden"
+        },
     },
     "VsCodeTaskButtons.showCounter": false,
     "VsCodeTaskButtons.tasks": [
