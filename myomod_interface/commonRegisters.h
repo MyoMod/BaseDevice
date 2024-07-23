@@ -21,6 +21,18 @@
 /************************************************************************************
  * DATA TYPES
  * *********************************************************************************/
+enum class DeviceRegisterType
+{
+	Status = 0,
+	CommonDeviceStatus,
+	CommonDeviceInformation,
+	CommonDeviceConfiguration,
+	DeviceSpecificStatus,
+	DeviceSpecificInformation,
+	DeviceSpecificConfiguration,
+    n
+};
+#define NUM_REGISTERS ((int)DeviceRegisterType::n)
 
 /**
  * @brief Control byte for the communication interface
@@ -35,42 +47,19 @@ struct __attribute__((packed)) ControlByte_t
 };
 
 /**
- * @brief Error states for the onebyte status byte
- * 
- */
-enum class CommErrorState_t
-{
-    Ok = 1,
-    CommonError,
-    DeviceSpecificError,
-    AlignmentError,
-    OverflowH_IN,
-    UnderflowH_IN,
-    OverflowH_OUT,
-    UnderflowH_OUT
-};
-
-/**
- * @brief Warning states for the onebyte status byte
- * 
- */
-enum class CommWarning_t
-{
-    Ok = 1,
-    CommonWarning,
-    DeviceSpecificWarning,
-};
-
-/**
  * @brief Status byte for the communication interface
  * 
  */
 struct __attribute__((packed)) StatusByte_t
 {
-    CommErrorState_t errorState : 4;
-    CommWarning_t warningState : 2;
-    bool H_IN_FIFO_AVAIL : 1;
-    bool H_OUT_FIFO_NFULL : 1;
+    bool reserved2          : 1;
+    bool realtime_warning   : 1;
+    bool specific_warning   : 1;
+    bool common_warning     : 1;
+    bool reserved1          : 1;
+    bool alignment_error    : 1;
+    bool specific_error     : 1;
+    bool common_error       : 1;
 };
 
 /**
@@ -79,38 +68,28 @@ struct __attribute__((packed)) StatusByte_t
  */
 struct __attribute__((packed)) CommonDeviceStatus_t
 {
-    uint8_t notInitialized : 1;
-    uint8_t ill_HostInBurstSize : 1;
-    uint8_t ill_HostOutBurstSize : 1;
-    uint8_t ill_ConfigurationAccess : 1;
-    uint8_t reserved : 4;
-};
-
-/**
- * @brief Direction of the stream supported by the device
- * 
- */
-enum class StreamDir_t
-{
-    None = 0,
-    HostIn = 1,
-    HostOut = 2,
-    HostInHostOut = 3
+    bool reserved2              : 3;
+    bool config_length_warning  : 1;
+    bool reserved1              : 1;
+    bool streamdirection_error  : 1;
+    bool config_access_error    : 1;
+    bool not_initialized_error  : 1;
 };
 
 /**
  * @brief Common Device Information
  * 
  */
-struct __attribute__((packed)) CommonDeviceInfo_t
+struct __attribute__((packed)) CommonDeviceInformation_t
 {
-    uint8_t H_In_PacketSize;
-    uint8_t H_Out_PacketSize;
-    char Identifier[10];
-    uint8_t DeviceVersion[3];
-    uint8_t ProtocolVersion[3];
-    StreamDir_t SupportedStreamDirections;
+    uint8_t             protocol_version[2]; // Byte 0+1
+    std::array<char,10> device_type;
+    std::array<char,10> identifier;
+    uint16_t            hostOut_size;
+    uint16_t            hostIn_size;
+    uint8_t             device_version[2];
 };
+
 
 /**
  * @brief Common Device Configuration
@@ -118,26 +97,8 @@ struct __attribute__((packed)) CommonDeviceInfo_t
  */
 struct __attribute__((packed)) CommonDeviceConfiguration_t
 {
-    uint8_t H_In_BurstSize;
-    uint8_t H_Out_BurstSize;
-    uint8_t DeviceIntialized : 1;
     uint8_t reserved : 7;
-};
-
-/**
- * @brief Register Names
- * 
- */
-enum RegisterName_t
-{
-    REG_StatusByte,
-    REG_CommonDeviceStatus,
-    REG_CommonDeviceInfo,
-    REG_CommonDeviceConfiguration,
-    REG_DeviceSpecificStatus,
-    REG_DeviceSpecificInfo,
-    REG_DeviceSpecificConfiguration,
-    NUM_REGISTERS,
+    uint8_t initialized : 1;
 };
 
 /**

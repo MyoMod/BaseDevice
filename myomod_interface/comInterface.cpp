@@ -40,34 +40,37 @@ enum class Core1To0Commands
 /**** Register interface ****/
 StatusByte_t g_statusByte =
     {
-        CommErrorState_t::Ok, // errorState
-        CommWarning_t::Ok,    // warningState
-        1,                    // H_IN_FIFO_AVAIL
-        1,                    // H_OUT_FIFO_NFULL
+    reserved2          : 0,
+    realtime_warning   : 0,
+    specific_warning   : 0,
+    common_warning     : 0,
+    reserved1          : 0,
+    alignment_error    : 0,
+    specific_error     : 0,
+    common_error       : 0
 };
 CommonDeviceStatus_t g_commonDeviceStatus =
-    {
-        1, // notInitialized
-        0, // ill_HostInBurstSize
-        0, // ill_HostOutBurstSize
-        0, // ill_ConfigurationAccess
-        0, // reserved
+{
+    reserved2              : 0,
+    config_length_warning  : 0,
+    reserved1              : 0,
+    streamdirection_error  : 0,
+    config_access_error    : 0,
+    not_initialized_error  : 0
 };
-CommonDeviceInfo_t g_commonDeviceInfo =
-    {
-        0,                          // H_In_PacketSize
-        6,                          // H_Out_PacketSize
-        MM_DEVICE_IDENTIFIER,       // Identifier
-        MM_DEVICE_VERSION,          // DeviceVersion
-        {0, 1, 0},                  // ProtocolVersion
-        StreamDir_t::HostInHostOut  // SupportedStreamDirections
+CommonDeviceInformation_t g_commonDeviceInfo =
+{
+    .protocol_version = {1, 0},
+    .device_type = MM_DEVICE_TYPE,
+    .identifier = MM_DEVICE_IDENTIFIER,
+    .hostOut_size = MM_DEVICE_HOST_OUT_SIZE,
+    .hostIn_size = MM_DEVICE_HOST_IN_SIZE,
+    .device_version = MM_DEVICE_VERSION
 };
 CommonDeviceConfiguration_t g_commonDeviceConfiguration =
     {
-        0, // H_In_BurstSize
-        0, // H_Out_BurstSize
-        0, // DeviceIntialized
-        0, // reserved
+    reserved    : 0,
+    initialized : 0
 };
 DeviceSpecificStatus_t g_deviceSpecificStatus;
 DeviceSpecificInfo_t g_deviceSpecificInfo;
@@ -216,9 +219,9 @@ void comInterfaceSetHIn(DeviceToHost_t *buffer)
  */
 void comInterfaceGetStatus(DeviceSpecificStatus_t *status)
 {
-    mutex_enter_blocking(&g_regMutexes[REG_DeviceSpecificStatus]);
+    mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::DeviceSpecificStatus]);
     memcpy(status, &g_deviceSpecificStatus, sizeof(DeviceSpecificStatus_t));
-    mutex_exit(&g_regMutexes[REG_DeviceSpecificStatus]);
+    mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::DeviceSpecificStatus]);
 }
 
 /**
@@ -228,22 +231,16 @@ void comInterfaceGetStatus(DeviceSpecificStatus_t *status)
  */
 void comInterfaceSetStatus(DeviceSpecificStatus_t *status, bool generateWarning, bool generateError)
 {
-    mutex_enter_blocking(&g_regMutexes[REG_DeviceSpecificStatus]);
+    mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::DeviceSpecificStatus]);
     memcpy(&g_deviceSpecificStatus, status, sizeof(DeviceSpecificStatus_t));
-    mutex_exit(&g_regMutexes[REG_DeviceSpecificStatus]);
+    mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::DeviceSpecificStatus]);
 
-    if (generateWarning)
-    {
-        mutex_enter_blocking(&g_regMutexes[REG_StatusByte]);
-        g_statusByte.warningState = CommWarning_t::DeviceSpecificWarning;
-        mutex_exit(&g_regMutexes[REG_StatusByte]);
-    }
-    if (generateError)
-    {
-        mutex_enter_blocking(&g_regMutexes[REG_StatusByte]);
-        g_statusByte.errorState = CommErrorState_t::DeviceSpecificError;
-        mutex_exit(&g_regMutexes[REG_StatusByte]);
-    }
+
+    mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::Status]);
+    g_statusByte.specific_warning = generateWarning;
+    g_statusByte.specific_error = generateError;
+    mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::Status]);
+    
 }
 
 void __isr core0_alarm_irq_callback()
@@ -288,9 +285,9 @@ void comInterfaceHandleConfigUpdate()
     static DeviceSpecificConfiguration_t currentConfig;
 
     // Read the new configuration from the register
-    mutex_enter_blocking(&g_regMutexes[REG_DeviceSpecificConfiguration]);
+    mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::DeviceSpecificConfiguration]);
     memcpy(&currentConfig, &g_deviceSpecificConfiguration, sizeof(DeviceSpecificConfiguration_t));
-    mutex_exit(&g_regMutexes[REG_DeviceSpecificConfiguration]);
+    mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::DeviceSpecificConfiguration]);
 
     // call the callback if it is set
     if (UpdateConfig_Callback != NULL)
@@ -415,7 +412,7 @@ bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
         mutex_exit(&g_regMutexes[registerName]);
 
         // inform core0 that the configuration has changed
-        if (registerName = REG_DeviceSpecificConfiguration)
+        if (registerName = (uint)DeviceRegisterType::DeviceSpecificConfiguration)
         {
             g_core1To0Command = Core1To0Commands::UpdateConfig;
             core1_force_alarmInterrupt();
@@ -424,12 +421,12 @@ bool core1_WriteToRegister(void *buffer, uint32_t length, uint32_t registerName)
     else
     {
         // set the error bit in the status byte
-        mutex_enter_blocking(&g_regMutexes[REG_CommonDeviceStatus]);
-        g_commonDeviceStatus.ill_ConfigurationAccess = 1;
-        mutex_exit(&g_regMutexes[REG_CommonDeviceStatus]);
-        mutex_enter_blocking(&g_regMutexes[REG_StatusByte]);
-        g_statusByte.errorState = CommErrorState_t::CommonError;
-        mutex_exit(&g_regMutexes[REG_StatusByte]);
+        mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::CommonDeviceStatus]);
+        g_commonDeviceStatus.config_access_error = 1;
+        mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::CommonDeviceStatus]);
+        mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::Status]);
+        g_statusByte.common_error = 1;
+        mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::Status]);
     }
     return valid;
 }
@@ -497,12 +494,12 @@ bool core1_ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerNam
     else
     {
         // set the error bit in the status byte
-        mutex_enter_blocking(&g_regMutexes[REG_CommonDeviceStatus]);
-        g_commonDeviceStatus.ill_ConfigurationAccess = 1;
-        mutex_exit(&g_regMutexes[REG_CommonDeviceStatus]);
-        mutex_enter_blocking(&g_regMutexes[REG_StatusByte]);
-        g_statusByte.errorState = CommErrorState_t::CommonError;
-        mutex_exit(&g_regMutexes[REG_StatusByte]);
+        mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::CommonDeviceStatus]);
+        g_commonDeviceStatus.config_access_error = 1;
+        mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::CommonDeviceStatus]);
+        mutex_enter_blocking(&g_regMutexes[(uint)DeviceRegisterType::Status]);
+        g_statusByte.common_error = 1;
+        mutex_exit(&g_regMutexes[(uint)DeviceRegisterType::Status]);
     }
     return valid;
 }
@@ -518,7 +515,7 @@ bool core1_ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerNam
 bool __always_inline core1_ReadStatus(uint8_t *status)
 {
     // copy the data from the register
-    *status = *(uint8_t *)g_regPointers[REG_StatusByte];
+    *status = *(uint8_t *)g_regPointers[(uint)DeviceRegisterType::Status];
 
     return true;
 }
