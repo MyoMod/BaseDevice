@@ -12,6 +12,8 @@
 #include "pico/malloc.h"
 #include "pico/mem_ops.h"
 
+#include "debug_pins.h"
+
 // Type defines
 enum TransactionDirection {
     TRANSDIR_NONE = 0,
@@ -64,6 +66,7 @@ static volatile uint32_t g_PdsChannelFull = 0;
 static volatile bool g_pdsOverflow = false;
 static volatile bool g_pdsUnderflow = false;
 static volatile uint16_t *g_registerData[2] = {0};
+static volatile uint32_t g_regLength = 0; // Length of the currently received register data.
 
 //dma
 static dma_channel_config g_i2cTxDmaConfig;
@@ -76,6 +79,7 @@ static void (*H_Out_NotifyPdsBufferFull)(uint32_t bufferIndex);
 static bool (*H_In_GetRegisterCallback)(void* buffer, uint32_t *length, uint32_t registerAddr);
 static bool (*H_In_GetStatusCallback)(uint8_t *status);
 static bool (*H_Out_RegisterCallback)(void* buffer, uint32_t length, uint32_t registerAddr);
+static uint32_t (*getRegisterLength)(uint32_t registerAddr);
 
 static void (*sync_callback)(void);
 
@@ -86,7 +90,6 @@ void __isr __not_in_flash_func(i2c_dma_irq_handler)(void);
 static void __always_inline H_IN_PdsData(void);
 static void __always_inline H_In_RegisterTransfer(uint32_t addr);
 static void H_Out_PdsData(void);
-static void __always_inline H_Out_RegisterTransfer(uint32_t addr);
 
 void I2C_Init(i2cInitConfiguration_t *initConfiguration)
 {
@@ -102,6 +105,7 @@ void I2C_Init(i2cInitConfiguration_t *initConfiguration)
     H_In_GetStatusCallback = initConfiguration->H_In_GetStatusCallback;
     H_Out_RegisterCallback = initConfiguration->H_Out_RegisterCallback;
     sync_callback = initConfiguration->sync_callback;
+    getRegisterLength = initConfiguration->getRegisterLength;
 
     // Set HOut buffer pointers
     g_HOutStreamBuffer[0] = (uint8_t*) initConfiguration->HOut_pdsBuffer;
@@ -292,22 +296,15 @@ static void H_Out_PdsData(void)
     dma_channel_set_write_addr(g_i2cRxDmaChan, g_HOutStreamBuffer[g_activePdsRxChannel], true);
 }
 
-/**
- * @brief Sets the value of the register with address addr to data.
- * 
- */
-static void __always_inline H_Out_RegisterTransfer(uint32_t addr) {
+static void H_Out_PrepareRegisterReceive(uint32_t addr)
+{
     auto hw = g_i2c->hw;
-    volatile uint32_t length = hw->rxflr+1;
-    volatile uint8_t *regData = (uint8_t*)g_registerData[FIFO_DIR_RX];
+    volatile uint16_t *regData = g_registerData[FIFO_DIR_RX];
+    g_regLength = getRegisterLength(addr);
 
-    for (uint32_t i = 0; i < length; i++)
-    {
-        regData[i] = hw->data_cmd;
-    }
-
-    H_Out_RegisterCallback((void*)regData, length, addr);
-}
+    dma_channel_set_trans_count(g_i2cRxDmaChan, g_regLength, false);
+    dma_channel_set_write_addr(g_i2cRxDmaChan, regData, true);
+} 
 
 
 // i2c slave handler
@@ -403,8 +400,7 @@ static void __isr __not_in_flash_func(i2c_slave_irq_handler)(void) {
                 // Read is terminated, so we can process the data.
         if (g_transactionDir == TRANSDIR_HODI)
         {
-            // This is HoDi, so we need to set the register.
-            H_Out_RegisterTransfer(g_transactionAddr);
+            // This is already handled in the dma interrupt.
         }
 
         g_transactionAddr = 0xFF;
@@ -456,7 +452,7 @@ static void __isr __not_in_flash_func(i2c_slave_irq_handler)(void) {
                     // This is HoDi.
                     g_transactionDir = TRANSDIR_HODI;
 
-                    hw->rx_tl = 15;
+                    H_Out_PrepareRegisterReceive(g_transactionAddr);
                 }
             }
         }
@@ -503,8 +499,8 @@ void __isr __not_in_flash_func(i2c_dma_irq_handler)(void)
             // Notify the application that the register data was received.
 
             // TODO: Get the right length.
-            panic_unsupported();
-            //H_Out_RegisterCallback((void*)g_registerData[FIFO_DIR_RX], g_i2c->hw->rxflr+1, g_transactionAddr);
+            //panic_unsupported();
+            H_Out_RegisterCallback((void*)g_registerData[FIFO_DIR_RX], g_regLength, g_transactionAddr);
         }
         
         

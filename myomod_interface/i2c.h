@@ -25,6 +25,7 @@ struct i2cInitConfiguration_t {
     uint32_t HIn_pdsLength; // Length of the HIn pds data in bytes.
     void* HOut_pdsBuffer; // Pointer to the HOut pds data.
     uint32_t HOut_pdsLength; // Length of the HOut pds data in bytes.
+    
 
     // callbacks
     void (*H_Out_NotifyPdsBufferFull)(uint32_t bufferIndex);
@@ -32,6 +33,7 @@ struct i2cInitConfiguration_t {
     bool (*H_In_GetRegisterCallback)(void* buffer, uint32_t *length, uint32_t registerAddr);
     bool (*H_In_GetStatusCallback)(uint8_t *status);
     void (*sync_callback)(void);
+    uint32_t (*getRegisterLength)(uint32_t registerAddr);
 };
 
 // Functions

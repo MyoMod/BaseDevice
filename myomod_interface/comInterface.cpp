@@ -10,6 +10,7 @@
 #include <span>
 
 #include "comInterface.h"
+#include "debug_pins.h"
 #include "i2c.h"
 
 #include "commonRegisters.h"
@@ -128,6 +129,7 @@ void core1_comInterfaceHandleHOutPDS(uint32_t bufferIndex);
 bool core1_ReadFromRegister(void *buffer, uint32_t *length, uint32_t registerName);
 bool __always_inline core1_ReadStatus(uint8_t *status);
 void core1_comInterfaceHandleSync();
+uint32_t core1_getRegLength(uint32_t registerIndex);
 
 static void __isr core0_alarm_irq_callback();
 static void __isr core1_alarm_irq_callback();
@@ -347,6 +349,7 @@ int core1_init(void)
     i2cConfig.H_In_GetRegisterCallback = core1_ReadFromRegister;
     i2cConfig.H_In_GetStatusCallback = core1_ReadStatus;
     i2cConfig.H_Out_RegisterCallback = core1_WriteToRegister;
+    i2cConfig.getRegisterLength = core1_getRegLength;
 
     i2cConfig.sync_callback = core1_comInterfaceHandleSync;
     I2C_Init(&i2cConfig);
@@ -454,6 +457,18 @@ void core1_comInterfaceHandleSync()
 {
     g_core1To0Command = Core1To0Commands::Sync;
     core1_force_alarmInterrupt();
+}
+
+/**
+ * @brief Returns the length of a register.
+ *
+ * @param registerIndex The index of the register.
+ * @return uint32_t The length of the register.
+ */
+uint32_t core1_getRegLength(uint32_t registerIndex)
+{
+    assert(registerIndex < NUM_REGISTERS);
+    return g_regLength[registerIndex];
 }
 
 /**
