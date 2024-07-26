@@ -10,7 +10,6 @@
 #include <span>
 
 #include "comInterface.h"
-#include "debug_pins.h"
 #include "i2c.h"
 
 #include "commonRegisters.h"

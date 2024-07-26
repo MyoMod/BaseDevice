@@ -9,12 +9,16 @@
  * INCLUDES
  ************************************************************************************/
 #include <stdint.h>
+#include "charArray.h"
 
 /************************************************************************************
  * DEFINES
  ************************************************************************************/
-#define MM_DEVICE_VERSION {0, 1, 0}
-#define MM_DEVICE_IDENTIFIER {'B', 'a', 's', 'e', 'D', 'e', 'v', 'i', 'c', 'e'}
+#define MM_DEVICE_VERSION       {0, 1}
+#define MM_DEVICE_IDENTIFIER    idArr("BaseDev  1")
+#define MM_DEVICE_TYPE          idArr("BaseDevice")
+#define MM_DEVICE_HOST_OUT_SIZE 1
+#define MM_DEVICE_HOST_IN_SIZE  1
 
 
 /************************************************************************************

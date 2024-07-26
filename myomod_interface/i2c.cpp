@@ -12,8 +12,6 @@
 #include "pico/malloc.h"
 #include "pico/mem_ops.h"
 
-#include "debug_pins.h"
-
 // Type defines
 enum TransactionDirection {
     TRANSDIR_NONE = 0,
