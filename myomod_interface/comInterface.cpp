@@ -1,24 +1,44 @@
-// SPDX-License-Identifier: CC0-1.0
+/**
+ * @file comInterface.cpp
+ * @author Leon Farchau (leon2225)
+ * @brief 
+ * @version 0.1
+ * @date 26.07.2024
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 
+/************************************************************
+ *  INCLUDES
+ ************************************************************/
+// c/c++ includes
 #include <stdio.h>
-#include "pico/stdlib.h"
-#include "pico/multicore.h"
-#include "hardware/gpio.h"
 #include "string.h"
-#include "hardware/irq.h"
-#include "pico/sync.h"
 #include <span>
 
+// pico includes
+#include "hardware/gpio.h"
+#include "hardware/irq.h"
+#include "hardware/timer.h"
+#include "pico/sync.h"
+#include "pico/stdlib.h"
+#include "pico/multicore.h"
+
+// myomod includes
 #include "comInterface.h"
 #include "i2c.h"
-
 #include "commonRegisters.h"
+
+// project includes
 #include "specificRegisters.h"
 
-// Defines
-#define HOUT_BUFFER_SIZE (sizeof(HostToDevice_t)) // size of the buffer in bytes for the H_OUT stream
+/************************************************************
+ *  DEFINES
+ ************************************************************/
+#define HOUT_BUFFER_SIZE MM_DEVICE_HOST_OUT_SIZE // size of the buffer in bytes for the H_OUT stream
 
-#define HIN_BUFFER_SIZE (sizeof(DeviceToHost_t)) // size of the buffer in bytes for the H_IN stream
+#define HIN_BUFFER_SIZE MM_DEVICE_HOST_IN_SIZE // size of the buffer in bytes for the H_IN stream
 
 #define CMD_UPDATE_CONFIG 0x01 // command to update the configuration
 #define CMD_NEW_DATA 0x02      // command to process new HOut data
@@ -36,7 +56,14 @@ enum class Core1To0Commands
 };
 
 
-// Variables
+/************************************************************
+ * Type definitions
+ * **********************************************************/
+
+
+/************************************************************
+ * Variables
+ * **********************************************************/
 /**** Register interface ****/
 StatusByte_t g_statusByte =
     {
@@ -115,7 +142,10 @@ void (*HOut_Callback)(const HostToDevice_t * const data);
 void (*UpdateConfig_Callback)(DeviceSpecificConfiguration_t *config, DeviceSpecificConfiguration_t *oldConfig);
 void (*Sync_Callback)(void);
 
-// Private function prototypes
+
+/************************************************************
+ * Function prototypes
+ * **********************************************************/
 
 void __isr multicoreFiFoIRQHandler(void);
 void comInterfaceHandleConfigUpdate();
@@ -135,7 +165,10 @@ static void __isr core1_alarm_irq_callback();
 static inline void core1_force_alarmInterrupt();
 static inline void core0_force_alarmInterrupt();
 
-// Public functions
+
+/************************************************************
+ * Functions
+ * **********************************************************/
 
 /**
  * @brief Initializes the communication interface
